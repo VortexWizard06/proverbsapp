@@ -1,10 +1,12 @@
 import requests
 import xml.etree.ElementTree as ET
-import openai
+from openai import OpenAI
 
-# Set the base URL and API key for the llama.cpp server
-openai.api_base = "http://localhost:8080/v1"
-openai.api_key = "sk-no-key-required"
+# Initialize the OpenAI client
+client = OpenAI(
+    api_key="sk-no-key-required",
+    base_url="http://localhost:11434/v1"
+)
 
 def load_proverbs_text():
     proverbs_by_chapter = {}
@@ -73,7 +75,7 @@ def ask_llama_cpp(question, proverbs_by_chapter, model="LLaMA_CPP"):
     proverbs_keywords = ["proverbs", "wisdom", "solomon", "saying", "wise", "fool", "instruction"]
     if any(keyword in question.lower() for keyword in proverbs_keywords):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": "You are an AI assistant that answers questions based on the book of Proverbs."},
@@ -82,10 +84,10 @@ def ask_llama_cpp(question, proverbs_by_chapter, model="LLaMA_CPP"):
             )
             # Debugging output to understand the response structure
             print(f"Response from llama.cpp: {response}")
-            
+
             # Access the content of the first choice's message
-            if response and 'choices' in response and len(response['choices']) > 0:
-                return response['choices'][0]['message']['content']
+            if response and response.choices:
+                return response.choices[0].message.content
             else:
                 return "No response from llama.cpp"
         except Exception as e:
@@ -131,7 +133,7 @@ def main():
             keyword_search(keyword, proverbs_by_chapter)
         elif choice == '5':
             question = input("Enter your question: ")
-            answer = ask_llama_cpp(question, proverbs_by_chapter)
+            answer = ask_llama_cpp(question, proverbs_by_chapter, model='phi3:latest')
             print(answer)
         elif choice == '6':
             print("Exiting program.")
