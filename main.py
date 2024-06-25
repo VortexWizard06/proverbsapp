@@ -1,45 +1,42 @@
 import requests
 import xml.etree.ElementTree as ET
+import openai
+
+# Set the base URL and API key for the llama.cpp server
+openai.api_base = "http://localhost:8080/v1"
+openai.api_key = "sk-no-key-required"
 
 def load_proverbs_text():
     proverbs_by_chapter = {}
 
-    # Fetch Proverbs text from GitHub
-    url = 'https://raw.githubusercontent.com/seven1m/open-bibles/master/eng-asv.osis.xml'
-    response = requests.get(url)
-    if response.status_code == 200:
-        try:
-            # Parse XML content
-            root = ET.fromstring(response.content)
+    try:
+        # Read Proverbs text from a local file
+        tree = ET.parse('proverbs.xml')
+        root = tree.getroot()
 
-            # Find Proverbs book
-            proverbs_book = root.find(".//BIBLEBOOK[@bname='Proverbs']")
-            if proverbs_book is not None:
-                # Find all chapters in Proverbs
-                for chapter in proverbs_book.findall(".//CHAPTER"):
-                    chapter_number = int(chapter.attrib.get("cnumber"))
-                    chapter_verses = {}
+        # Find Proverbs book
+        proverbs_book = root.find(".//BIBLEBOOK[@bname='Proverbs']")
+        if proverbs_book is not None:
+            # Find all chapters in Proverbs
+            for chapter in proverbs_book.findall(".//CHAPTER"):
+                chapter_number = int(chapter.attrib.get("cnumber"))
+                chapter_verses = {}
 
-                    # Find all verses within the chapter
-                    for verse in chapter.findall(".//VERS"):
-                        verse_number = int(verse.attrib.get("vnumber"))
-                        verse_text = verse.text.strip()
-                        chapter_verses[verse_number] = verse_text
+                # Find all verses within the chapter
+                for verse in chapter.findall(".//VERS"):
+                    verse_number = int(verse.attrib.get("vnumber"))
+                    verse_text = verse.text.strip()
+                    chapter_verses[verse_number] = verse_text
 
-                    proverbs_by_chapter[chapter_number] = chapter_verses
+                proverbs_by_chapter[chapter_number] = chapter_verses
 
-                return proverbs_by_chapter
-            else:
-                print("Proverbs book not found in the XML data.")
-        except Exception as e:
-            print(f"Error parsing XML: {e}")
-    else:
-        print(f"Failed to fetch Proverbs text from GitHub. Status code: {response.status_code}")
+            return proverbs_by_chapter
+        else:
+            print("Proverbs book not found in the XML data.")
+    except Exception as e:
+        print(f"Error parsing XML: {e}")
 
     return proverbs_by_chapter
-
-# Other functions (display_chapter, display_specific_verse, keyword_search, main) remain unchanged
-
 
 def display_chapter(chapter_number, proverbs_by_chapter):
     if chapter_number in proverbs_by_chapter:
@@ -71,6 +68,32 @@ def keyword_search(keyword, proverbs_by_chapter):
     else:
         print(f"No verses containing the keyword '{keyword}' found.")
 
+def ask_llama_cpp(question, proverbs_by_chapter, model="LLaMA_CPP"):
+    # Check if the question contains relevant keywords
+    proverbs_keywords = ["proverbs", "wisdom", "solomon", "saying", "wise", "fool", "instruction"]
+    if any(keyword in question.lower() for keyword in proverbs_keywords):
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are an AI assistant that answers questions based on the book of Proverbs."},
+                    {"role": "user", "content": question}
+                ]
+            )
+            # Debugging output to understand the response structure
+            print(f"Response from llama.cpp: {response}")
+            
+            # Access the content of the first choice's message
+            if response and 'choices' in response and len(response['choices']) > 0:
+                return response['choices'][0]['message']['content']
+            else:
+                return "No response from llama.cpp"
+        except Exception as e:
+            print(f"Error communicating with llama.cpp: {e}")
+            return None
+    else:
+        return "You can only ask questions related to the book of Proverbs."
+
 def main():
     print("Loading Proverbs text...")
     proverbs_by_chapter = load_proverbs_text()
@@ -82,7 +105,8 @@ def main():
         print("2. Display specific chapter")
         print("3. Search for a specific verse")
         print("4. Search for a keyword")
-        print("5. Exit")
+        print("5. Ask LLaMA_CPP a question based on Proverbs")
+        print("6. Exit")
 
         choice = input("Enter your choice: ")
 
@@ -106,6 +130,10 @@ def main():
             keyword = input("Enter keyword: ")
             keyword_search(keyword, proverbs_by_chapter)
         elif choice == '5':
+            question = input("Enter your question: ")
+            answer = ask_llama_cpp(question, proverbs_by_chapter)
+            print(answer)
+        elif choice == '6':
             print("Exiting program.")
             break
         else:
@@ -113,3 +141,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
